@@ -4,23 +4,26 @@ project(trpc_file_transfer_experiment CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# ----------------- 包含目录 -----------------
-# tRPC 头文件
-include_directories("/home/kevin/trpc-cpp/trpc/include")
+# ----------------- tRPC 路径 -----------------
+# trpc_cpp_plugin 绝对路径
+set(TRPC_PLUGIN "/home/kevin/trpc-cpp/build/bin/trpc_cpp_plugin")
+# trpc include 和 lib 路径
+set(TRPC_INCLUDE "/usr/local/trpc-cpp/trpc/include")
+set(TRPC_LIB "/home/kevin/trpc-cpp/build/lib/libtrpc.a")
 
-# Proto 生成目录
+include_directories(${TRPC_INCLUDE})
+link_directories("/home/kevin/trpc-cpp/build/lib")
+
+# ----------------- Protobuf -----------------
+find_package(Protobuf REQUIRED)
+message(STATUS "Protobuf_INCLUDE_DIR: ${Protobuf_INCLUDE_DIR}")
+message(STATUS "Protobuf_LIBRARIES: ${Protobuf_LIBRARIES}")
+
+# ----------------- Proto 代码生成 -----------------
+file(GLOB PROTO_FILES "${CMAKE_CURRENT_SOURCE_DIR}/proto/*.proto")
 set(PROTO_GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/gen_proto")
 file(MAKE_DIRECTORY ${PROTO_GEN_DIR})
 include_directories(${PROTO_GEN_DIR})
-
-# ----------------- 链接目录 -----------------
-link_directories("/home/kevin/trpc-cpp/build/lib")
-
-# ----------------- 查找 Protobuf -----------------
-find_package(Protobuf REQUIRED)
-
-# ----------------- Proto 文件生成 -----------------
-file(GLOB PROTO_FILES "${CMAKE_CURRENT_SOURCE_DIR}/proto/*.proto")
 
 add_custom_command(
     OUTPUT "${PROTO_GEN_DIR}/file_transfer.pb.cc"
@@ -28,6 +31,7 @@ add_custom_command(
            "${PROTO_GEN_DIR}/file_transfer.trpc.pb.cc"
            "${PROTO_GEN_DIR}/file_transfer.trpc.pb.h"
     COMMAND ${Protobuf_PROTOC_EXECUTABLE}
+            --plugin=protoc-gen-trpc=${TRPC_PLUGIN}
             --proto_path=${CMAKE_CURRENT_SOURCE_DIR}/proto
             --cpp_out=${PROTO_GEN_DIR}
             --trpc_out=${PROTO_GEN_DIR}
@@ -43,7 +47,9 @@ add_custom_target(generate_proto ALL
             "${PROTO_GEN_DIR}/file_transfer.trpc.pb.h"
 )
 
-# ----------------- 服务端可执行文件 -----------------
+# ----------------- 服务端 -----------------
+include_directories(server)
+
 add_executable(file_transfer_server
     server/main.cc
     server/file_transfer_service.cc
@@ -53,12 +59,12 @@ add_executable(file_transfer_server
 add_dependencies(file_transfer_server generate_proto)
 
 target_link_libraries(file_transfer_server
-    "/home/kevin/trpc-cpp/build/lib/libtrpc.a"
-    protobuf::libprotobuf
+    ${TRPC_LIB}
+    ${Protobuf_LIBRARIES}
     pthread
 )
 
-# ----------------- 客户端可执行文件 -----------------
+# ----------------- 客户端 -----------------
 add_executable(file_transfer_client
     client/main.cc
 )
@@ -66,8 +72,8 @@ add_executable(file_transfer_client
 add_dependencies(file_transfer_client generate_proto)
 
 target_link_libraries(file_transfer_client
-    "/home/kevin/trpc-cpp/build/lib/libtrpc.a"
-    protobuf::libprotobuf
+    ${TRPC_LIB}
+    ${Protobuf_LIBRARIES}
     pthread
 )
 
